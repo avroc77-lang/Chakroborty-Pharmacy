@@ -593,10 +593,12 @@ function importJSON(event){
 let googleTokenClient=null, googleAccessToken=sessionStorage.getItem('cpf_google_access_token')||'', googleEmail=sessionStorage.getItem('cpf_google_email')||'', driveFileId=localStorage.getItem('cpf_google_drive_file_id')||'';
 let autoBackupTimer=null;
 const GOOGLE_CLIENT_KEY='cpf_google_client_id';
+ const GOOGLE_CLIENT_ID='596428649289-mdil8mq4gtm5pn9542ek1jc6h0r72jli.apps.googleusercontent.com';
+localStorage.setItem(GOOGLE_CLIENT_KEY, GOOGLE_CLIENT_ID);
 function loadGoogleConfig(){
  const cid=localStorage.getItem(GOOGLE_CLIENT_KEY)||''; const el=document.getElementById('googleClientId'); if(el) el.value=cid;
- const auto=localStorage.getItem('cpf_google_auto_backup')==='1'; const cb=document.getElementById('autoDriveBackup'); if(cb) cb.checked=auto;
- updateGoogleStatus();
+ const auto=true;
+localStorage.setItem('cpf_google_auto_backup','1');
 }
 function updateGoogleStatus(){
  const el=document.getElementById('googleAccountStatus'); if(!el)return;
