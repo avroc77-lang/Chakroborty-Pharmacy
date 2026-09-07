@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#176b4d">
+<title>চক্রবর্তী ফার্মেসি হিসাব খাতা</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7f5;color:#17231e;font-family:system-ui,-apple-system,"Noto Sans Bengali",sans-serif}
+header{background:linear-gradient(90deg,rgba(4,45,32,.90),rgba(11,93,67,.72),rgba(4,45,32,.90)),url("pharmacy-banner.svg") center/cover no-repeat;color:white;padding:20px 16px 18px;position:sticky;top:0;z-index:5;box-shadow:0 2px 8px #0002;text-shadow:0 2px 4px #0008}
+h1{font-size:21px;margin:0 0 4px}.sub{opacity:.85;font-size:13px}
+nav{display:flex;background:white;position:sticky;top:82px;z-index:4;border-bottom:1px solid #ddd;overflow:auto}
+nav button{border:0;background:white;padding:13px 12px;white-space:nowrap;font-size:13px;color:#456}
+nav button.active{color:#176b4d;font-weight:700;border-bottom:3px solid #176b4d}
+main{max-width:700px;margin:auto;padding:15px}
+.page{display:none}.page.active{display:block}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:white;border-radius:14px;padding:15px;box-shadow:0 1px 5px #0001;margin-bottom:12px}
+.stat{font-size:22px;font-weight:800;margin-top:5px}.label{font-size:12px;color:#68766f}
+input,select{width:100%;padding:12px;border:1px solid #d4ddd8;border-radius:10px;font-size:16px;background:white}
+label{font-size:13px;color:#4e5b55;display:block;margin:10px 0 5px}
+button.primary{width:100%;padding:13px;border:0;border-radius:11px;background:#176b4d;color:#fff;font-size:16px;font-weight:700;margin-top:12px}
+button.secondary{padding:10px 12px;border:1px solid #ccd8d2;background:white;border-radius:9px}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 5px;border-bottom:1px solid #e7ece9;text-align:left}th{color:#5b6962}
+.amount{font-weight:700}.danger{color:#b3261e}.green{color:#176b4d}
+.empty{text-align:center;color:#7a8781;padding:25px 5px}
+.small{font-size:12px;color:#68766f}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#eaf5ef;color:#176b4d;font-size:11px}
+.actions{display:flex;gap:7px;margin-top:10px}.actions button{flex:1}
+hr{border:0;border-top:1px solid #e4eae6;margin:14px 0}
+
+.login-overlay{position:fixed;inset:0;background:#f4f7f5;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px}
+.login-box{width:100%;max-width:420px;background:white;border-radius:18px;padding:24px;box-shadow:0 4px 20px #0002}
+.login-box h2{margin:0 0 6px;text-align:center}.login-box .small{text-align:center;margin-bottom:18px}
+.login-box input{width:100%;padding:13px;border:1px solid #ccd8d2;border-radius:10px;margin:6px 0 12px;font-size:16px}
+.login-box button{width:100%;padding:13px;border:0;border-radius:10px;background:#176b4d;color:white;font-size:15px;font-weight:700}
+.login-links{display:flex;gap:8px;margin-top:10px}.login-links button{background:#eef4f1;color:#176b4d}
+.account-box{border-top:1px solid #e4eae6;margin-top:16px;padding-top:16px}.account-box input{width:100%;padding:11px;border:1px solid #ccd8d2;border-radius:9px;margin:5px 0 10px}
+.logout-btn{background:#fff!important;color:#b33!important;border:1px solid #ecc!important;padding:7px 10px!important;border-radius:8px!important;font-size:12px!important}
+
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.report-stat{background:#f7faf8;border:1px solid #e2eae5;border-radius:12px;padding:12px}.report-stat .stat{font-size:18px}.report-inner{box-shadow:none;border:1px solid #e3ebe6;margin-top:10px}.report-line{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf1ef}.report-line:last-child{border-bottom:0}@media(max-width:420px){.report-grid{grid-template-columns:1fr 1fr}.report-stat{padding:10px}.report-stat .stat{font-size:16px}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div style="display:none">ডাটা হারায়নি—পুরোনো Version-এর Local Storage আলাদা হতে পারে। JSON Backup দিয়ে Restore করুন।</div>
+<div id="loginOverlay" class="login-overlay">
+<div class="login-box">
+<h2>🔐 চক্রবর্তী ফার্মেসি</h2>
+<div class="small">হিসাব খাতায় প্রবেশ করতে ID ও Password দিন</div>
+<label>আইডি</label><input id="loginId" autocomplete="username" placeholder="ID">
+<label>পাসওয়ার্ড</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')login()">
+<button onclick="login()">🔓 লগইন</button>
+<div class="login-links"><button onclick="forgotPassword()">🔑 Forgot Password</button></div>
+<div class="small" style="margin-top:12px">ডিফল্ট: <b>admin</b> / <b>1234</b></div>
+</div></div>
+<header><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h1>চক্রবর্তী ফার্মেসি হিসাব খাতা</h1><div class="sub">দৈনিক বিক্রি, কোম্পানি পেমেন্ট, ভাড়া ও দোকানের খরচ</div></div><button class="logout-btn" onclick="logout()">লগআউট</button></div></header>
+<nav>
+<button class="active" onclick="show('home',this)">🏠 হোম</button>
+<button onclick="show('add',this)">➕ হিসাব যোগ</button>
+<button onclick="show('history',this)">📋 হিসাব</button>
+<button onclick="show('report',this)">📊 রিপোর্ট</button><button onclick="show('daywise',this)">📅 দিনভিত্তিক</button><button onclick="show('due',this)">👤 বাকি</button>
+</nav>
+
+<main>
+<section id="home" class="page active">
+<div class="grid">
+<div class="card"><div class="label">আজকের সেল</div><div class="stat" id="todaySale">৳0</div></div>
+<div class="card"><div class="label">আজকের খরচ</div><div class="stat" id="todayExpense">৳0</div></div>
+<div class="card"><div class="label">আজ কোম্পানিকে</div><div class="stat" id="todayCompany">৳0</div></div>
+<div class="card"><div class="label">আজ ভাড়া</div><div class="stat" id="todayRent">৳0</div></div>
+<div class="card"><div class="label">আজ বাকি</div><div class="stat" id="todayDue">৳0</div></div>
+<div class="card"><div class="label">আজকের ব্যালান্স</div><div class="stat green" id="todayBalance">৳0</div></div>
+</div>
+<div class="card">
+<h3 style="margin:0 0 8px">💵 ক্যাশ হিসাব</h3>
+<div class="row"><span>প্রিভিয়াস ব্যালেন্স (গতকালের ক্যাশ)</span><b id="previousBalanceTop">৳0</b></div>
+<div class="row"><span>আজকের সেল থেকে ক্যাশ ইন</span><b id="todaySalesCashIn">৳0</b></div>
+<div class="row"><span>আজকে আলাদাভাবে ক্যাশ যোগ</span><b id="todayAddedCash">৳0</b></div>
+<div class="row"><span>আজকের মোট ক্যাশ ইন</span><b id="todayCashIn">৳0</b></div>
+<div class="row"><span>আজকের ক্যাশ আউট</span><b id="todayCashOut">৳0</b></div>
+<hr>
+<div class="row"><span><b>ক্যাশ ইন হ্যান্ড</b></span><b class="green" id="cashInHand">৳0</b></div>
+</div>
+
+<div class="card">
+<h3 style="margin:0 0 8px">আজকের সংক্ষিপ্ত হিসাব</h3>
+<div class="row"><span>মোট বের হয়েছে</span><b id="todayOut">৳0</b></div>
+<hr>
+<div class="row"><span>বাকি বিক্রি</span><b id="todayDueSummary">৳0</b></div>
+<div class="row"><span>প্রিভিয়াস ব্যালেন্স</span><b id="previousBalance">৳0</b></div>
+<div class="row"><span>আজকের ক্যাশ ইন হ্যান্ড</span><b class="green" id="todayNet">৳0</b></div>
+</div>
+<div class="card">
+<h3 style="margin:0 0 8px">এই মাস</h3>
+<div class="row"><span>মোট সেল</span><b id="monthSale">৳0</b></div>
+<div class="row"><span>মোট খরচ</span><b id="monthExpense">৳0</b></div>
+<div class="row"><span>কোম্পানি পেমেন্ট</span><b id="monthCompany">৳0</b></div>
+<div class="row"><span>ভাড়া</span><b id="monthRent">৳0</b></div>
+<div class="row"><span>বাকি</span><b id="monthDue">৳0</b></div>
+<div class="row"><span>মাসের ব্যালান্স</span><b class="green" id="monthBalance">৳0</b></div>
+</div>
+
+<div class="card">
+<h3 style="margin:0 0 10px">💰 আজকের সেল</h3>
+<div id="todaySales"></div>
+<div style="text-align:right;margin-top:10px"><b>মোট সেল: <span id="todaySalesTotal">৳0</span></b></div>
+</div>
+
+<div class="card">
+<h3 style="margin:0 0 10px">🏢 আজকের কোম্পানি পেমেন্ট</h3>
+<div id="todayCompanyPayments"></div>
+<div style="text-align:right;margin-top:10px"><b>মোট পেমেন্ট: <span id="todayCompanyTotal">৳0</span></b></div>
+</div>
+
+<div class="card">
+<h3 style="margin:0 0 10px">🧾 আজকের দোকানের খরচ</h3>
+<div id="todayExpenses"></div>
+<div style="text-align:right;margin-top:10px"><b>মোট খরচ: <span id="todayExpenseTotal">৳0</span></b></div>
+</div>
+
+<div class="card">
+<h3 style="margin:0 0 10px">👤 আজকের বাকি</h3>
+<div id="todayDues"></div>
+<div style="text-align:right;margin-top:10px"><b>মোট বাকি: <span id="todayDueTotal">৳0</span></b></div>
+</div>
+
+</section>
+
+<section id="add" class="page">
+<div class="card">
+<h3 style="margin-top:0">নতুন হিসাব যোগ করুন</h3>
+<label>তারিখ</label><input type="date" id="date">
+<label>হিসাবের ধরন</label>
+<select id="type" onchange="toggleFields()">
+<option value="sale">💰 সেল</option>
+<option value="cashin">💵 ক্যাশে টাকা যোগ</option>
+<option value="company">🏢 কোম্পানিকে টাকা</option>
+<option value="rent">🏪 দোকান ভাড়া</option>
+<option value="expense">🧾 দোকানের খরচ</option>
+</select>
+<div id="cashinField" style="display:none"><label>ক্যাশে টাকা যোগ করার কারণ</label><input id="cashinName" placeholder="যেমন: ব্যক্তিগত টাকা / ইনভেস্টমেন্ট"></div>
+<div id="companyField" style="display:none"><label>কোম্পানির নাম</label><input id="companyName" placeholder="যেমন: Square"></div>
+<div id="expenseField" style="display:none"><label>খরচের কারণ</label><input id="expenseName" placeholder="যেমন: চা/বিদ্যুৎ/যাতায়াত"></div>
+<label>টাকার পরিমাণ</label><input id="amount" type="number" inputmode="decimal" min="0" placeholder="৳">
+<label>নোট (ঐচ্ছিক)</label><input id="note" placeholder="কোনো অতিরিক্ত তথ্য">
+<button class="primary" onclick="saveEntry()">হিসাব সেভ করুন</button>
+</div>
+</section>
+
+<section id="history" class="page">
+<div class="card">
+<div class="row"><h3 style="margin:0">সকল হিসাব</h3><button class="secondary" onclick="exportCSV()">CSV</button></div>
+<label>তারিখ দিয়ে খুঁজুন</label><input type="date" id="filterDate" onchange="renderHistory()">
+<div id="historyList"></div>
+</div>
+</section>
+
+<section id="report" class="page">
+<div class="card">
+<h3 style="margin-top:0">মাসিক রিপোর্ট</h3>
+<label>মাস নির্বাচন করুন</label><input type="month" id="reportMonth" onchange="renderReport()">
+<div class="actions" style="margin-top:10px">
+  <button class="secondary" onclick="deleteSalesForMonth()">🗑️ এই মাসের সব সেল মুছুন</button>
+</div>
+<div id="reportBox"></div>
+</div>
+<div class="card">
+<h3 style="margin-top:0">ডেটা ব্যাকআপ</h3>
+<div class="small">ফোন বদলালে বা অ্যাপ/ব্রাউজারের ডেটা মুছে গেলে CSV ফাইল দিয়ে হিসাব সংরক্ষণ করতে পারবেন।</div>
+<div class="actions"><button class="secondary" onclick="exportCSV()">⬇️ CSV ব্যাকআপ</button><button class="secondary" onclick="exportJSON()">💾 সম্পূর্ণ ব্যাকআপ</button><button class="secondary" onclick="document.getElementById('importFile').click()">📥 ডাটা ফিরিয়ে আনুন</button><button class="secondary" onclick="clearAll()">🗑️ সব মুছুন</button></div><input id="importFile" type="file" accept="application/json,.json" style="display:none" onchange="importJSON(event)">
+</div>
+<div class="card">
+<h3 style="margin-top:0">☁️ Firebase Cloud Sync</h3>
+<div class="small">এই সংস্করণে Google Drive backup-এর বদলে Firebase Cloud Firestore ব্যবহার করা হবে। একই Google Account দিয়ে ফোন ও ল্যাপটপে Sign in করলে একই হিসাব cloud-এ থাকবে এবং পরিবর্তনগুলো স্বয়ংক্রিয়ভাবে sync হবে।</div>
+<div class="actions" style="margin-top:10px">
+<button class="primary" onclick="firebaseGoogleLogin()">🔐 Google Account দিয়ে Sign in</button>
+<button class="secondary" onclick="firebaseLogout()">↪️ Sign out</button>
+</div>
+<div id="firebaseAccountStatus" class="small" style="margin-top:8px">Firebase: সংযুক্ত নয়</div>
+<div class="card" style="margin-top:12px;background:#f7faf8">
+<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="autoCloudSync" checked onchange="toggleCloudSync()" style="width:auto"> 🔄 হিসাব বদলালে Auto Cloud Sync</label>
+<div class="small" style="margin-top:7px">ইন্টারনেট থাকলে হিসাব Firebase-এ সংরক্ষণ হবে। ইন্টারনেট না থাকলেও এই ডিভাইসে local copy থাকবে।</div>
+<div class="actions" style="margin-top:10px">
+<button class="secondary" onclick="syncFromFirebase()">☁️ Cloud থেকে Sync</button>
+<button class="secondary" onclick="saveToFirebase(true)">☁️ এখনই Cloud Save</button>
+</div>
+<div id="firebaseSyncStatus" class="small" style="margin-top:8px"></div>
+</div>
+<details style="margin-top:10px"><summary><b>প্রথমবার সেটআপ</b></summary>
+<div class="small" style="margin-top:8px;line-height:1.6">
+1. Firebase Console-এ একটি project তৈরি করুন।<br>
+2. Web app যোগ করে পাওয়া Firebase config এই HTML-এর <b>FIREBASE_CONFIG</b> অংশে বসাতে হবে।<br>
+3. Authentication → Sign-in method থেকে <b>Google</b> চালু করুন।<br>
+4. Firestore Database তৈরি করুন।<br>
+5. Firestore Security Rules-এ authenticated user-এর নিজের <b>shops/{uid}</b> document-এ access দিন।<br>
+6. তারপর GitHub Pages-এ এই <b>index.html</b> আপলোড করুন।<br><br>
+<b>নোট:</b> Firebase config গোপন password নয়, তবে Firestore Security Rules অবশ্যই ঠিকভাবে সেট করতে হবে। Firebase-এর Authentication + Firestore + Security Rules ব্যবহার করাই নিরাপদ পদ্ধতি।
+</div></details>
+</div>
+
+<div class="card account-box">
+<h3 style="margin-top:0">🔐 ID ও Password পরিবর্তন</h3>
+<div class="small">চাইলে আপনার লগইন ID ও Password পরিবর্তন করতে পারবেন।</div>
+<label>নতুন ID</label><input id="newLoginId" placeholder="নতুন ID">
+<label>বর্তমান Password</label><input id="currentLoginPassword" type="password" placeholder="বর্তমান Password">
+<label>নতুন Password</label><input id="newLoginPassword" type="password" placeholder="নতুন Password">
+<button onclick="changeCredentials()" style="padding:11px 14px;border:0;border-radius:9px;background:#176b4d;color:white;font-weight:700">💾 পরিবর্তন সংরক্ষণ</button>
+</div>
+</section>
+
+<section id="daywise" class="page">
+<div class="card">
+<h3 style="margin-top:0">📅 দিনভিত্তিক হিসাব</h3>
+<label>যে দিনের হিসাব দেখতে চান</label><input type="date" id="daywiseDate" onchange="renderDaywise()">
+<div class="grid" style="margin-top:12px">
+<div><span class="small">Previous Balance</span><br><b id="dayPrevBalance">৳0</b></div>
+<div><span class="small">সেল</span><br><b id="daySaleTotal">৳0</b></div>
+<div><span class="small">আলাদা ক্যাশ যোগ</span><br><b id="dayCashInTotal">৳0</b></div>
+<div><span class="small">বাকি</span><br><b id="dayDueTotal">৳0</b></div>
+<div><span class="small">কোম্পানি</span><br><b id="dayCompanyTotal">৳0</b></div>
+<div><span class="small">ভাড়া</span><br><b id="dayRentTotal">৳0</b></div>
+<div><span class="small">খরচ</span><br><b id="dayExpenseTotal">৳0</b></div>
+</div>
+<div class="card" style="margin-top:12px;background:#f8fbf9"><div class="row"><span><b>💵 Cash in Hand</b></span><b class="green" id="dayCashHand">৳0</b></div></div>
+<div class="actions" style="margin-top:10px">
+  <button class="secondary" onclick="deleteSalesForDay()">🗑️ এই দিনের সব সেল মুছুন</button>
+  <button class="secondary" onclick="deleteAllForDay()">⚠️ এই দিনের সব হিসাব মুছুন</button>
+</div>
+</div>
+<div class="card"><h3 style="margin-top:0">💰 সেল এন্ট্রি</h3><div id="daySales"></div></div>
+<div class="card"><h3 style="margin-top:0">🏢 কোম্পানি পেমেন্ট</h3><div id="dayCompanies"></div></div>
+<div class="card"><h3 style="margin-top:0">🧾 দোকানের খরচ</h3><div id="dayExpenses"></div></div>
+<div class="card"><h3 style="margin-top:0">👤 বাকি এন্ট্রি</h3><div id="dayDues"></div></div>
+</section>
+
+<section id="due" class="page">
+<div class="card">
+<h3 style="margin-top:0">👤 বাকি দেওয়া / কাস্টমার</h3>
+<label>তারিখ</label><input type="date" id="dueDate">
+<label>কাস্টমারের নাম</label><input id="dueCustomer" placeholder="নাম">
+<label>মোবাইল নম্বর</label><input id="duePhone" type="tel" inputmode="tel" placeholder="01XXXXXXXXX">
+<label>বাকির পরিমাণ</label><input id="dueAmount" type="number" inputmode="decimal" min="0" placeholder="৳">
+<label>নোট (ঐচ্ছিক)</label><input id="dueNote" placeholder="যেমন: ওষুধের বাকি">
+<button class="primary" onclick="saveDue()">বাকি সেভ করুন</button>
+</div>
+<div class="card">
+<h3 style="margin:0 0 8px">মোট বাকি</h3>
+<div class="stat" id="totalDue">৳0</div>
+<div class="small" style="margin-top:6px">কাস্টমার টাকা পরিশোধ করলে নিচের বাটনে চাপ দিয়ে তার বাকি লিস্ট থেকে মুছে দিতে পারবেন।</div>
+<hr>
+<div id="customerDueList"></div>
+</div>
+</section>
+
+</main>
+
+<script>
+const AUTH_KEY='cpfarmacy_login_v1';
+const DEFAULT_ID='admin', DEFAULT_PASSWORD='1234';
+function getCreds(){
+ try{const c=JSON.parse(localStorage.getItem(AUTH_KEY)||'null'); if(c&&c.id&&c.password)return c;}catch(e){}
+ const c={id:DEFAULT_ID,password:DEFAULT_PASSWORD}; localStorage.setItem(AUTH_KEY,JSON.stringify(c)); return c;
+}
+function login(){
+ const id=document.getElementById('loginId').value.trim(), pw=document.getElementById('loginPassword').value;
+ const c=getCreds();
+ if(id===c.id && pw===c.password){sessionStorage.setItem('cpfarmacy_logged_in','1');document.getElementById('loginOverlay').style.display='none';}
+ else alert('ID অথবা Password ভুল হয়েছে।');
+}
+document.addEventListener('DOMContentLoaded',()=>{ 
+ const p=document.getElementById('loginPassword');
+ const i=document.getElementById('loginId');
+ [i,p].forEach(el=>el&&el.addEventListener('keydown',e=>{if(e.key==='Enter')login();}));
+});
+function logout(){sessionStorage.removeItem('cpfarmacy_logged_in');document.getElementById('loginId').value='';document.getElementById('loginPassword').value='';document.getElementById('loginOverlay').style.display='flex';}
+function forgotPassword(){
+ const c=getCreds();
+ if(confirm('Password মনে না থাকলে ID ও Password ডিফল্টে (admin / 1234) ফিরিয়ে দেওয়া হবে।\\n\\nআপনি কি Reset করতে চান?')){
+   localStorage.setItem(AUTH_KEY,JSON.stringify({id:DEFAULT_ID,password:DEFAULT_PASSWORD}));
+   document.getElementById('loginId').value=DEFAULT_ID; document.getElementById('loginPassword').value='';
+   alert('Password Reset হয়েছে।\nID: admin\nPassword: 1234');
+ }
+}
+function changeCredentials(){
+ const newId=document.getElementById('newLoginId').value.trim();
+ const current=document.getElementById('currentLoginPassword').value;
+ const newPw=document.getElementById('newLoginPassword').value;
+ const c=getCreds();
+ if(current!==c.password){alert('বর্তমান Password সঠিক নয়।');return}
+ if(!newId||!newPw){alert('নতুন ID এবং নতুন Password দুটোই দিন।');return}
+ if(newPw.length<4){alert('Password কমপক্ষে 4 অক্ষরের দিন।');return}
+ localStorage.setItem(AUTH_KEY,JSON.stringify({id:newId,password:newPw}));
+ document.getElementById('newLoginId').value='';document.getElementById('currentLoginPassword').value='';document.getElementById('newLoginPassword').value='';
+ alert('ID ও Password সফলভাবে পরিবর্তন হয়েছে ✅');
+}
+(function(){
+ getCreds();
+ if(sessionStorage.getItem('cpfarmacy_logged_in')==='1') document.getElementById('loginOverlay').style.display='none';
+})();
+
+const KEY='cpfarmacy_hisab_v1';
+let data=JSON.parse(localStorage.getItem(KEY)||'[]');
+let dues=JSON.parse(localStorage.getItem(KEY+'_dues')||'[]');
+data=data.map(e=>({...e,cashin:e.cashin||''}));
+const taka=n=>'৳'+Number(n||0).toLocaleString('bn-BD');
+const dhakaDateFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'});
+const today=()=>dhakaDateFormatter.format(new Date());
+document.getElementById('date').value=today();
+document.getElementById('dueDate').value=today();
+document.getElementById('reportMonth').value=today().slice(0,7);
+document.getElementById('daywiseDate').value=today();
+
+function show(id,btn){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+ document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+ btn.classList.add('active'); refresh();
+}
+function toggleFields(){
+ let t=document.getElementById('type').value;
+ document.getElementById('companyField').style.display=t==='company'?'block':'none';
+ document.getElementById('expenseField').style.display=t==='expense'?'block':'none';
+}
+function saveEntry(){
+ const type=document.getElementById('type').value, amount=Number(document.getElementById('amount').value);
+ if(!amount || amount<0){alert('টাকার পরিমাণ দিন।');return}
+ const e={id:Date.now().toString(36)+Math.random().toString(36).slice(2),id:Date.now(),time:Date.now(),date:document.getElementById('date').value,type,amount,
+ company:document.getElementById('companyName').value.trim(),
+ expense:document.getElementById('expenseName').value.trim(),
+ cashin:document.getElementById('cashinName').value.trim(),
+ note:document.getElementById('note').value.trim()};
+ data.push(e); localStorage.setItem(KEY,JSON.stringify(data));
+ document.getElementById('amount').value='';document.getElementById('note').value='';document.getElementById('cashinName').value='';
+ alert('হিসাব সেভ হয়েছে ✅'); refresh(); scheduleAutoBackup();
+}
+function sums(arr){
+ return {sale:arr.filter(e=>e.type==='sale').reduce((s,e)=>s+e.amount,0),
+ cashin:arr.filter(e=>e.type==='cashin').reduce((s,e)=>s+e.amount,0),
+ company:arr.filter(e=>e.type==='company').reduce((s,e)=>s+e.amount,0),
+ rent:arr.filter(e=>e.type==='rent').reduce((s,e)=>s+e.amount,0),
+ expense:arr.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount,0)};
+}
+function dueSum(arr){return arr.reduce((s,e)=>s+Number(e.amount||0),0)}
+function previousDay(dateStr){
+ const [y,m,d]=dateStr.split('-').map(Number);
+ const dt=new Date(Date.UTC(y,m-1,d-1));
+ return dt.toISOString().slice(0,10);
+}
+function cashForDate(dateStr){
+ const s=sums(data.filter(e=>e.date===dateStr));
+ const due=dueSum(dues.filter(e=>e.date===dateStr));
+ return s.sale+s.cashin-due-s.company-s.rent-s.expense;
+}
+function getPreviousBalance(dateStr){
+ const prev=previousDay(dateStr);
+ // Use the latest recorded day's cash balance before the selected date.
+ const allDates=[...new Set(data.map(e=>e.date).concat(dues.map(e=>e.date)))]
+   .filter(d=>d<dateStr).sort();
+ if(!allDates.length) return 0;
+ let balance=0;
+ for(const d of allDates) balance += cashForDate(d);
+ return balance;
+}
+
+
+function deleteEntryById(id){
+  const idx = data.findIndex(e => String(e.id) === String(id));
+  if(idx < 0){ alert('এই হিসাবটি পাওয়া যায়নি।'); return; }
+  const e = data[idx];
+  const labels = {
+    sale:'সেল',
+    company:'কোম্পানি পেমেন্ট',
+    rent:'ভাড়া',
+    expense:'খরচ',
+    cashin:'ক্যাশ ইন / ইনভেস্টমেন্ট'
+  };
+  const label = labels[e.type] || 'হিসাব';
+  if(!confirm(`এই ${label} হিসাবটি মুছে ফেলবেন?\nটাকা: ${Number(e.amount||0).toFixed(2)}\nতারিখ: ${e.date||''}`)) return;
+  data.splice(idx,1);
+  localStorage.setItem(KEY,JSON.stringify(data));
+  refresh();
+  scheduleAutoBackup();
+}
+
+function refresh(){
+ const d=today(), m=d.slice(0,7), ds=sums(data.filter(e=>e.date===d)), ms=sums(data.filter(e=>e.date.startsWith(m)));
+ const dd=dueSum(dues.filter(e=>e.date===d)), md=dueSum(dues.filter(e=>e.date.startsWith(m)));
+ const prevBal=getPreviousBalance(d);
+ const cashIn=ds.sale+ds.cashin-dd;
+ const cashOut=ds.company+ds.rent+ds.expense;
+ const cashHand=prevBal+cashIn-cashOut;
+
+ todaySale.textContent=taka(ds.sale);todayExpense.textContent=taka(ds.expense);todayCompany.textContent=taka(ds.company);todayRent.textContent=taka(ds.rent);
+ todayDue.textContent=taka(dd);todayDueSummary.textContent=taka(dd);
+ todayOut.textContent=taka(cashOut);todayNet.textContent=taka(cashHand);
+ previousBalance.textContent=taka(prevBal);previousBalanceTop.textContent=taka(prevBal);
+ todayCashIn.textContent=taka(cashIn);todayCashOut.textContent=taka(cashOut);cashInHand.textContent=taka(cashHand);
+ monthSale.textContent=taka(ms.sale);monthExpense.textContent=taka(ms.expense);monthCompany.textContent=taka(ms.company);monthRent.textContent=taka(ms.rent);
+ monthDue.textContent=taka(md);monthBalance.textContent=taka(prevBal+ms.sale+ms.cashin-md-ms.company-ms.rent-ms.expense);
+ renderHistory();renderReport();renderDues();renderTodayEntries();renderDaywise();
+}
+function typeIcon(t){return t==='sale'?'💰':t==='cashin'?'💵':t==='company'?'🏢':t==='rent'?'🏪':'🧾'}
+function label(e){ if(e.type==='sale') return 'সেল'; if(e.type==='cashin') return e.cashin||'ক্যাশে টাকা যোগ'; if(e.type==='company') return e.company||'কোম্পানি পেমেন্ট'; if(e.type==='rent') return 'দোকান ভাড়া'; return e.expense||'অন্যান্য খরচ'; }
+function entryTime(e){
+ if(!e.time) return '';
+ return new Date(e.time).toLocaleTimeString('bn-BD',{hour:'numeric',minute:'2-digit'});
+}
+function entryCard(e,num){
+ return `<div style="padding:10px 0;border-bottom:1px solid #e7ece9">
+   <div class="row" style="align-items:flex-start">
+     <div style="min-width:0"><span class="pill">${typeIcon(e.type)} ${e.type==='sale'&&num?'সেল #'+num:esc(label(e))}</span>
+       ${entryTime(e)?'<div class="small" style="margin-top:4px">'+entryTime(e)+'</div>':''}
+       ${e.note?'<div class="small">'+esc(e.note)+'</div>':''}<div class="actions" style="margin-top:6px"><button class="secondary" onclick="deleteEntry('${e.id}')">🗑️ এই হিসাব মুছুন</button></div>
+     </div>
+     <b class="amount" style="white-space:nowrap">${taka(e.amount)}</b>
+   </div>
+   <div class="actions"><button class="secondary" onclick="editEntry(${e.id})">✏️ এডিট</button><button class="secondary" onclick="del(${e.id})">🗑️ মুছুন</button></div>
+ </div>`;
+}
+
+function deleteEntry(id){
+  const e=data.find(x=>String(x.id)===String(id));
+  if(!e)return;
+  const labelText=e.type==='sale'?'এই সেল':e.type==='cashin'?'এই ক্যাশ যোগ': 'এই হিসাব';
+  if(!confirm(labelText+' মুছে ফেলবেন?'))return;
+  data=data.filter(x=>String(x.id)!==String(id));
+  localStorage.setItem(KEY,JSON.stringify(data));
+  refresh();
+  scheduleAutoBackup();
+}
+function deleteSalesForDay(){
+  const d=document.getElementById('daywiseDate')?.value;
+  if(!d)return alert('আগে একটি দিন নির্বাচন করুন।');
+  const n=data.filter(e=>e.date===d && e.type==='sale').length;
+  if(!n)return alert('এই দিনে কোনো সেল নেই।');
+  if(!confirm(d+' তারিখের মোট '+n+'টি সেল মুছে ফেলবেন?'))return;
+  data=data.filter(e=>!(e.date===d && e.type==='sale'));
+  localStorage.setItem(KEY,JSON.stringify(data));
+  refresh();
+  scheduleAutoBackup();
+}
+function deleteAllForDay(){
+  const d=document.getElementById('daywiseDate')?.value;
+  if(!d)return alert('আগে একটি দিন নির্বাচন করুন।');
+  const n=data.filter(e=>e.date===d).length;
+  const dn=dues.filter(e=>e.date===d).length;
+  if(!n && !dn)return alert('এই দিনে কোনো হিসাব নেই।');
+  if(!confirm(d+' তারিখের সারা দিনের সব হিসাব মুছে ফেলবেন?\\n\\nসেল, ক্যাশ যোগ, কোম্পানি, ভাড়া, খরচ এবং ওই দিনের বাকি এন্ট্রি মুছে যাবে।'))return;
+  data=data.filter(e=>e.date!==d);
+  dues=dues.filter(e=>e.date!==d);
+  localStorage.setItem(KEY,JSON.stringify(data));
+  localStorage.setItem(KEY+'_dues',JSON.stringify(dues));
+  refresh();
+  scheduleAutoBackup();
+}
+function deleteSalesForMonth(){
+  const m=document.getElementById('reportMonth')?.value;
+  if(!m)return alert('আগে একটি মাস নির্বাচন করুন।');
+  const n=data.filter(e=>e.date.startsWith(m) && e.type==='sale').length;
+  if(!n)return alert('এই মাসে কোনো সেল নেই।');
+  if(!confirm(m+' মাসের মোট '+n+'টি সেল মুছে ফেলবেন?\\n\\nশুধু সেল মুছবে; ক্যাশ যোগ, কোম্পানি, ভাড়া, খরচ ও বাকি থাকবে।'))return;
+  data=data.filter(e=>!(e.date.startsWith(m) && e.type==='sale'));
+  localStorage.setItem(KEY,JSON.stringify(data));
+  refresh();
+  scheduleAutoBackup();
+}
+
+function renderHistory(){
+ const f=document.getElementById('filterDate').value, arr=data.filter(e=>!f||e.date===f).sort((a,b)=>b.id-a.id);
+ const box=document.getElementById('historyList');
+ if(!arr.length){box.innerHTML='<div class="empty">এখনো কোনো হিসাব নেই।</div>';return}
+ const s=sums(arr);
+ box.innerHTML=`
+ <div class="grid" style="margin-bottom:10px">
+   <div><span class="small">সেল</span><br><b>${taka(s.sale)}</b></div>
+   <div><span class="small">কোম্পানি</span><br><b>${taka(s.company)}</b></div>
+   <div><span class="small">ভাড়া</span><br><b>${taka(s.rent)}</b></div>
+   <div><span class="small">খরচ</span><br><b>${taka(s.expense)}</b></div>
+ </div>
+ ${arr.map((e,i)=>entryCard(e,i+1)).join('')}`;
+}
+function renderTodayEntries(){
+ const arr=data.filter(e=>e.date===today()).sort((a,b)=>b.id-a.id);
+ const sales=arr.filter(e=>e.type==='sale');
+ const companies=arr.filter(e=>e.type==='company');
+ const expenses=arr.filter(e=>e.type==='expense');
+ const dueArr=dues.filter(e=>e.date===today()).sort((a,b)=>b.id-a.id);
+
+ const put=(id,list,empty)=>{
+   const box=document.getElementById(id);
+   box.innerHTML=list.length?list.map((e,i)=>entryCard(e,i+1)).join(''):'<div class="empty">'+empty+'</div>';
+ };
+ put('todaySales',sales,'আজ কোনো সেল এন্ট্রি নেই।');
+ document.getElementById('todayCompanyPayments').innerHTML=companies.length?companies.map((e,i)=>`
+   <div style="padding:10px 0;border-bottom:1px solid #e7ece9">
+     <div class="row" style="align-items:center">
+       <div style="min-width:0"><span class="pill">🏢 পেমেন্ট #${i+1} · ${esc(e.company||'কোম্পানির নাম নেই')}</span>
+         <div class="small">${entryTime(e)}${e.note?' · '+esc(e.note):''}</div>
+       </div>
+       <b class="amount" style="white-space:nowrap">${taka(e.amount)}</b>
+     </div>
+     <div class="actions"><button class="secondary" onclick="editEntry(${e.id})">✏️ এডিট</button><button class="secondary" onclick="del(${e.id})">🗑️ মুছুন</button></div>
+   </div>`).join(''):'<div class="empty">আজ কোনো কোম্পানি পেমেন্ট নেই।</div>';
+ document.getElementById('todayExpenses').innerHTML=expenses.length?expenses.map(e=>`
+   <div style="padding:10px 0;border-bottom:1px solid #e7ece9">
+     <div class="row" style="align-items:center">
+       <div style="min-width:0"><span class="pill">🧾 ${esc(e.expense||'অন্যান্য খরচ')}</span>
+         <div class="small">${entryTime(e)}${e.note?' · '+esc(e.note):''}</div>
+       </div>
+       <b class="amount" style="white-space:nowrap">${taka(e.amount)}</b>
+     </div>
+     <div class="actions"><button class="secondary" onclick="editEntry(${e.id})">✏️ এডিট</button><button class="secondary" onclick="del(${e.id})">🗑️ মুছুন</button></div>
+   </div>`).join(''):'<div class="empty">আজ কোনো দোকানের খরচ নেই।</div>';
+
+ const dueBox=document.getElementById('todayDues');
+ dueBox.innerHTML=dueArr.length?dueArr.map(e=>`
+   <div style="padding:10px 0;border-bottom:1px solid #e7ece9">
+     <div class="row">
+       <div><b>${esc(e.customer)}</b><div class="small">${esc(e.phone||'মোবাইল নেই')} ${e.note?'· '+esc(e.note):''}</div>
+       <div class="small">${entryTime(e)}</div></div>
+       <b class="danger">${taka(e.amount)}</b>
+     </div>
+   </div>`).join(''):'<div class="empty">আজ কোনো বাকি এন্ট্রি নেই।</div>';
+
+ todaySalesTotal.textContent=taka(sales.reduce((s,e)=>s+e.amount,0));
+ todayCompanyTotal.textContent=taka(companies.reduce((s,e)=>s+e.amount,0));
+ todayExpenseTotal.textContent=taka(expenses.reduce((s,e)=>s+e.amount,0));
+ todayDueTotal.textContent=taka(dueSum(dueArr));
+}
+function renderDaywise(){
+ const d=document.getElementById('daywiseDate').value||today();
+ const arr=data.filter(e=>e.date===d).sort((a,b)=>b.id-a.id);
+ const sales=arr.filter(e=>e.type==='sale');
+ const companies=arr.filter(e=>e.type==='company');
+ const expenses=arr.filter(e=>e.type==='expense');
+ const rents=arr.filter(e=>e.type==='rent');
+ const dueArr=dues.filter(e=>e.date===d).sort((a,b)=>b.id-a.id);
+ const s=sums(arr), dd=dueSum(dueArr), prev=getPreviousBalance(d);
+ const cashHand=prev+s.sale+s.cashin-dd-s.company-s.rent-s.expense;
+ document.getElementById('dayPrevBalance').textContent=taka(prev);
+ document.getElementById('daySaleTotal').textContent=taka(s.sale);
+ document.getElementById('dayDueTotal').textContent=taka(dd);
+ document.getElementById('dayCompanyTotal').textContent=taka(s.company);
+ document.getElementById('dayRentTotal').textContent=taka(s.rent);
+ document.getElementById('dayExpenseTotal').textContent=taka(s.expense);
+ document.getElementById('dayCashHand').textContent=taka(cashHand);
+ const put=(id,list,empty)=>{const box=document.getElementById(id); box.innerHTML=list.length?list.map(entryCard).join():'<div class="empty">'+empty+'</div>';};
+ put('daySales',sales,'এই দিনে কোনো সেল এন্ট্রি নেই।');
+ document.getElementById('dayCompanies').innerHTML=companies.length?companies.map((e,i)=>`<div style="padding:10px 0;border-bottom:1px solid #e7ece9"><div class="row" style="align-items:center"><div style="min-width:0"><span class="pill">🏢 পেমেন্ট #${i+1} · ${esc(e.company||'কোম্পানির নাম নেই')}</span><div class="small">${entryTime(e)}${e.note?' · '+esc(e.note):''}</div></div><b class="amount" style="white-space:nowrap">${taka(e.amount)}</b></div><div class="actions"><button class="secondary" onclick="editEntry(${e.id})">✏️ এডিট</button><button class="secondary" onclick="del(${e.id})">🗑️ মুছুন</button></div></div>`).join(''):'<div class="empty">এই দিনে কোনো কোম্পানি পেমেন্ট নেই।</div>';
+ document.getElementById('dayExpenses').innerHTML=expenses.length?expenses.map(e=>`<div style="padding:10px 0;border-bottom:1px solid #e7ece9"><div class="row" style="align-items:center"><div style="min-width:0"><span class="pill">🧾 ${esc(e.expense||'অন্যান্য খরচ')}</span><div class="small">${entryTime(e)}${e.note?' · '+esc(e.note):''}</div></div><b class="amount" style="white-space:nowrap">${taka(e.amount)}</b></div><div class="actions"><button class="secondary" onclick="editEntry(${e.id})">✏️ এডিট</button><button class="secondary" onclick="del(${e.id})">🗑️ মুছুন</button></div></div>`).join(''):'<div class="empty">এই দিনে কোনো দোকানের খরচ নেই।</div>';
+ document.getElementById('dayDues').innerHTML=dueArr.length?dueArr.map(e=>`<div style="padding:10px 0;border-bottom:1px solid #e7ece9"><div class="row"><div><b>${esc(e.customer)}</b><div class="small">${esc(e.phone||'মোবাইল নেই')} ${e.note?'· '+esc(e.note):''}</div><div class="small">${entryTime(e)}</div></div><b class="danger">${taka(e.amount)}</b></div></div>`).join(''):'<div class="empty">এই দিনে কোনো বাকি এন্ট্রি নেই।</div>';
+}
+function renderReport(){
+ const m=document.getElementById('reportMonth').value||today().slice(0,7);
+ const monthData=data.filter(e=>e.date.startsWith(m));
+ const s=sums(monthData);
+ const monthDues=dues.filter(e=>e.date.startsWith(m));
+ const md=dueSum(monthDues);
+ const out=s.company+s.rent+s.expense;
+ const prev=getPreviousBalance(m+'-01');
+ const cash=prev+s.sale+s.cashin-out-md;
+ const companyMap={}, expenseMap={};
+ monthData.filter(e=>e.type==='company').forEach(e=>{const k=e.company||'কোম্পানির নাম নেই'; companyMap[k]=(companyMap[k]||0)+Number(e.amount||0)});
+ monthData.filter(e=>e.type==='expense').forEach(e=>{const k=e.expense||'অন্যান্য খরচ'; expenseMap[k]=(expenseMap[k]||0)+Number(e.amount||0)});
+ const companyRows=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="report-line"><span>🏢 ${esc(k)}</span><b>${taka(v)}</b></div>`).join('')||'<div class="empty">এই মাসে কোনো কোম্পানি পেমেন্ট নেই</div>';
+ const expenseRows=Object.entries(expenseMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="report-line"><span>🧾 ${esc(k)}</span><b>${taka(v)}</b></div>`).join('')||'<div class="empty">এই মাসে কোনো দোকান খরচ নেই</div>';
+ document.getElementById('reportBox').innerHTML=`
+ <div class="report-grid">
+  <div class="report-stat"><div class="label">মোট সেল</div><div class="stat">${taka(s.sale)}</div><div class="small">${monthData.filter(e=>e.type==='sale').length} টি সেল এন্ট্রি</div><button class="secondary" style="margin-top:8px" onclick="deleteMonthSales('${m}')">🗑️ এই মাসের সব সেল মুছুন</button></div>
+   <div class="report-stat"><div class="label">আলাদাভাবে ক্যাশ যোগ</div><div class="stat">${taka(s.cashin)}</div><div class="small">${monthData.filter(e=>e.type==='cashin').length} টি এন্ট্রি</div></div>
+  <div class="report-stat"><div class="label">কোম্পানি পেমেন্ট</div><div class="stat">${taka(s.company)}</div><div class="small">${monthData.filter(e=>e.type==='company').length} টি পেমেন্ট</div></div>
+  <div class="report-stat"><div class="label">দোকান ভাড়া</div><div class="stat">${taka(s.rent)}</div></div>
+  <div class="report-stat"><div class="label">অ্যাক্সেসরি/অন্যান্য খরচ</div><div class="stat">${taka(s.expense)}</div><div class="small">${monthData.filter(e=>e.type==='expense').length} টি খরচ</div></div>
+  <div class="report-stat"><div class="label">মাসের বাকি</div><div class="stat">${taka(md)}</div><div class="small">${monthDues.length} টি বাকি এন্ট্রি</div></div>
+  <div class="report-stat"><div class="label">মোট বের হয়েছে</div><div class="stat">${taka(out)}</div></div>
+ </div>
+ <div class="card report-inner"><h3 style="margin-top:0">🏢 কোম্পানি অনুযায়ী হিসাব</h3>${companyRows}<hr><div class="row"><span><b>মোট কোম্পানি পেমেন্ট</b></span><b>${taka(s.company)}</b></div></div>
+ <div class="card report-inner"><h3 style="margin-top:0">🧾 খরচের কারণ অনুযায়ী হিসাব</h3>${expenseRows}<hr><div class="row"><span><b>মোট দোকানের খরচ</b></span><b>${taka(s.expense)}</b></div></div>
+ <div class="card report-inner"><h3 style="margin-top:0">💰 মাস শেষে ক্যাশ হিসাব</h3>
+  <div class="row"><span>প্রিভিয়াস ব্যালেন্স</span><b>${taka(prev)}</b></div>
+  <div class="row"><span>সেল থেকে নগদ</span><b>${taka(s.sale-md)}</b></div>
+   <div class="row"><span>আলাদাভাবে যোগ করা ক্যাশ</span><b>${taka(s.cashin)}</b></div>
+  <div class="row"><span>কোম্পানি + ভাড়া + খরচ</span><b>${taka(out)}</b></div>
+  <hr><div class="row"><span><b>ক্যাশ ইন হ্যান্ড</b></span><b class="green">${taka(cash)}</b></div>
+ </div>`;
+}
+function deleteMonthSales(month){
+ const sales= data.filter(e=>e.date && e.date.startsWith(month) && e.type==='sale');
+ if(!sales.length){alert('এই মাসে কোনো সেল এন্ট্রি নেই।');return;}
+ const total=sales.reduce((sum,e)=>sum+Number(e.amount||0),0);
+ if(!confirm(month+' মাসের '+sales.length+'টি সেল এন্ট্রি (মোট '+taka(total)+') মুছে ফেলবেন?\n\nএই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।')) return;
+ data=data.filter(e=>!(e.date && e.date.startsWith(month) && e.type==='sale'));
+ localStorage.setItem(KEY,JSON.stringify(data));
+ refresh();
+ scheduleAutoBackup();
+ alert('এই মাসের সব সেল মুছে দেওয়া হয়েছে ✅');
+}
+function editEntry(id){
+ const e=data.find(x=>x.id===id); if(!e)return;
+ document.getElementById('date').value=e.date;
+ document.getElementById('type').value=e.type; toggleFields();
+ document.getElementById('companyName').value=e.company||'';
+ document.getElementById('expenseName').value=e.expense||'';
+ document.getElementById('amount').value=e.amount;
+ document.getElementById('note').value=e.note||'';
+ data=data.filter(x=>x.id!==id);
+ localStorage.setItem(KEY,JSON.stringify(data));
+ show('add',document.querySelectorAll('nav button')[1]);
+ alert('এন্ট্রিটি এডিট করার জন্য উপরে তুলে দেওয়া হয়েছে। নতুন করে সেভ করুন।');
+}
+function del(id){if(confirm('এই হিসাবটি মুছে ফেলবেন?')){data=data.filter(e=>e.id!==id);localStorage.setItem(KEY,JSON.stringify(data));refresh();scheduleAutoBackup()}}
+function esc(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function saveDue(){
+ const date=document.getElementById('dueDate').value, customer=document.getElementById('dueCustomer').value.trim(),
+ phone=document.getElementById('duePhone').value.trim(), amount=Number(document.getElementById('dueAmount').value),
+ note=document.getElementById('dueNote').value.trim();
+ if(!customer){alert('কাস্টমারের নাম দিন।');return}
+ if(!amount || amount<0){alert('বাকির পরিমাণ দিন।');return}
+ dues.push({id:Date.now(),time:Date.now(),date,customer,phone,amount,note});
+ localStorage.setItem(KEY+'_dues',JSON.stringify(dues));
+ document.getElementById('dueCustomer').value='';document.getElementById('duePhone').value='';
+ document.getElementById('dueAmount').value='';document.getElementById('dueNote').value='';
+ alert('বাকি সেভ হয়েছে ✅');refresh();scheduleAutoBackup();
+}
+function renderDues(){
+ const total=dueSum(dues); document.getElementById('totalDue').textContent=taka(total);
+ const map={};
+ dues.forEach(e=>{
+   const key=e.customer+'|'+e.phone;
+   if(!map[key]) map[key]={customer:e.customer,phone:e.phone,total:0,items:[]};
+   map[key].total+=Number(e.amount);map[key].items.push(e);
+ });
+ const arr=Object.values(map).sort((a,b)=>b.total-a.total);
+ const box=document.getElementById('customerDueList');
+ if(!arr.length){box.innerHTML='<div class="empty">কোনো বাকি নেই।</div>';return}
+ box.innerHTML=arr.map(c=>`
+ <div style="padding:11px 0;border-bottom:1px solid #e7ece9">
+   <div class="row"><div><b>${esc(c.customer)}</b><div class="small">${esc(c.phone||'মোবাইল নেই')}</div></div><b class="danger">${taka(c.total)}</b></div>
+   <div class="small">${c.items.length} বার বাকি</div>
+   <button class="secondary" style="margin-top:7px" onclick="delCustomerDue('${encodeURIComponent(c.customer)}','${encodeURIComponent(c.phone)}')">✅ টাকা পরিশোধ হয়েছে — বাকি লিস্ট থেকে মুছুন</button>
+ </div>`).join('');
+}
+function delCustomerDue(customer,phone){
+ customer=decodeURIComponent(customer);phone=decodeURIComponent(phone);
+ if(confirm(customer+'-এর সব বাকি হিসাব মুছে ফেলবেন?')){
+   dues=dues.filter(e=>!(e.customer===customer && e.phone===phone));
+   localStorage.setItem(KEY+'_dues',JSON.stringify(dues));refresh();scheduleAutoBackup();
+ }
+}
+
+function exportCSV(){
+ if(!data.length){alert('এক্সপোর্ট করার মতো হিসাব নেই।');return}
+ let csv='Date,Time,Type,CashInReason,Company,Expense,Amount,Note,Customer,Phone,DueAmount\n'+data.map(e=>[e.date,entryTime(e),e.type,e.cashin,e.company,e.expense,e.amount,e.note,'','',''].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+ csv += '\n' + dues.map(e=>[e.date,'due','','',0,e.note,e.customer,e.phone,e.amount].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='chakraborti-pharmacy-hisab.csv';a.click();
+}
+function getBackupPayload(){
+ return {version:18,exportedAt:new Date().toISOString(),data,dues};
+}
+function exportJSON(){
+ const payload=getBackupPayload();
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='chakraborti-pharmacy-hisab-backup.json';a.click();
+ setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function importJSON(event){
+ const file=event.target.files&&event.target.files[0];
+ if(!file)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+   try{
+     const payload=JSON.parse(reader.result);
+     if(!payload || !Array.isArray(payload.data) || !Array.isArray(payload.dues)) throw new Error('invalid');
+     if(!confirm('ব্যাকআপের ডাটা বর্তমান ডাটার সাথে যোগ হবে। চালিয়ে যাবেন?')){event.target.value='';return}
+     const existingIds=new Set(data.map(e=>String(e.id)));
+     const newData=payload.data.filter(e=>!existingIds.has(String(e.id)));
+     const existingDueIds=new Set(dues.map(e=>String(e.id)));
+     const newDues=payload.dues.filter(e=>!existingDueIds.has(String(e.id)));
+     data=data.concat(newData);dues=dues.concat(newDues);
+     localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'_dues',JSON.stringify(dues));
+     refresh();
+     alert('ডাটা সফলভাবে ফিরিয়ে আনা হয়েছে ✅\nনতুন হিসাব: '+newData.length+'টি\nনতুন বাকি: '+newDues.length+'টি'); scheduleAutoBackup();
+   }catch(err){alert('ব্যাকআপ ফাইলটি সঠিক নয়।');}
+   event.target.value='';
+ };
+ reader.readAsText(file);
+}
+
+// ================= Firebase Cloud Sync =================
+// Firebase Console থেকে পাওয়া config এখানে বসাতে হবে।
+// আপাতত placeholder রাখা হয়েছে; config দিলে আমি চাইলে পরে এই ফাইলেও বসিয়ে দিতে পারি।
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBoD5txsS9sRweA0h-aoNLQhJN6-fXeyDM",
+  authDomain: "chakroborty-pharmacy-6e4ae.firebaseapp.com",
+  projectId: "chakroborty-pharmacy-6e4ae",
+  storageBucket: "chakroborty-pharmacy-6e4ae.firebasestorage.app",
+  messagingSenderId: "354523125751",
+  appId: "1:354523125751:web:341bd49800d580149c80f2"
+};
+let firebaseReady=false, firebaseUser=null, firebaseUnsubscribe=null, cloudSaveTimer=null, firebaseInitialSyncDone=false;
+const CLOUD_SYNC_KEY='cpf_firebase_auto_sync';
+if(localStorage.getItem(CLOUD_SYNC_KEY)===null)localStorage.setItem(CLOUD_SYNC_KEY,'1');
+
+function setFirebaseStatus(msg){const el=document.getElementById('firebaseSyncStatus');if(el)el.textContent=msg}
+function updateFirebaseAccountStatus(){
+  const el=document.getElementById('firebaseAccountStatus');
+  if(!el)return;
+  el.textContent=firebaseUser ? ('Google Account: '+(firebaseUser.email||firebaseUser.displayName||'সংযুক্ত')+' ✅') : 'Firebase: সংযুক্ত নয়';
+}
+function firebaseConfigIsValid(){
+  return FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE_') && FIREBASE_CONFIG.projectId && !FIREBASE_CONFIG.projectId.startsWith('PASTE_');
+}
+function initFirebase(){
+  const cb=document.getElementById('autoCloudSync'); if(cb) cb.checked=localStorage.getItem(CLOUD_SYNC_KEY)!=='0';
+  try{
+    if(typeof firebase==='undefined'){
+      firebaseReady=false;
+      updateFirebaseAccountStatus();
+      setFirebaseStatus('Firebase SDK লোড হয়নি ❌ ইন্টারনেট/ব্রাউজার থেকে Firebase script লোড করা যাচ্ছে না।');
+      return;
+    }
+    if(!firebaseConfigIsValid()){
+      updateFirebaseAccountStatus();
+      setFirebaseStatus('Firebase config এখনো বসানো হয়নি। প্রথমে Firebase project তৈরি করে config বসাতে হবে।');
+      return;
+    }
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    window.firebaseAuth=firebase.auth();
+    window.firebaseDb=firebase.firestore();
+    firebaseReady=true;
+    firebaseAuth.onAuthStateChanged(async user=>{
+      firebaseUser=user||null;
+      updateFirebaseAccountStatus();
+      if(firebaseUnsubscribe){firebaseUnsubscribe();firebaseUnsubscribe=null;}
+      if(!user){firebaseInitialSyncDone=false;setFirebaseStatus('Google Account সংযুক্ত নয়।');return;}
+      setFirebaseStatus('Cloud data প্রস্তুত করা হচ্ছে...');
+      await prepareCloudForUser(user.uid);
+    });
+  }catch(e){
+    firebaseReady=false;
+    setFirebaseStatus('Firebase চালু হয়নি ❌ '+e.message);
+  }
+}
+async function firebaseGoogleLogin(){
+  if(!firebaseReady){alert('Firebase এখনো চালু হয়নি। প্রথমে নিচের Firebase status দেখুন—সেখানে আসল সমস্যাটি লেখা থাকবে।');return;}
+  try{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await firebaseAuth.signInWithPopup(provider);
+  }catch(e){
+    setFirebaseStatus('Google Sign in ব্যর্থ ❌ '+e.message);
+    alert('Google Sign in করা যায়নি।\n\n'+e.message);
+  }
+}
+async function firebaseLogout(){
+  if(!firebaseReady)return;
+  try{await firebaseAuth.signOut();setFirebaseStatus('Sign out হয়েছে।')}catch(e){setFirebaseStatus('Sign out ব্যর্থ ❌ '+e.message)}
+}
+function toggleCloudSync(){
+  const on=document.getElementById('autoCloudSync')?.checked;
+  localStorage.setItem(CLOUD_SYNC_KEY,on?'1':'0');
+  if(on) scheduleAutoBackup();
+}
+function scheduleAutoBackup(){
+  if(localStorage.getItem(CLOUD_SYNC_KEY)==='0')return;
+  if(!firebaseReady || !firebaseUser)return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=setTimeout(()=>saveToFirebase(true),900);
+}
+function cloudDocRef(uid){return firebaseDb.collection('shops').doc(uid)}
+async function prepareCloudForUser(uid){
+  try{
+    const ref=cloudDocRef(uid);
+    const snap=await ref.get();
+    if(snap.exists){
+      const remote=snap.data();
+      if(Array.isArray(remote.data)&&Array.isArray(remote.dues)){
+        const useCloud=confirm('এই Google Account-এর Cloud-এ আগের হিসাব পাওয়া গেছে।\n\nOK = Cloud-এর হিসাব এই ডিভাইসে আনুন\nCancel = এই ডিভাইসের হিসাব রেখে Cloud-এর সাথে Merge করুন');
+        if(useCloud){
+          data=remote.data; dues=remote.dues;
+        }else{
+          const ids=new Set(data.map(e=>String(e.id)));
+          data=data.concat(remote.data.filter(e=>!ids.has(String(e.id))));
+          const dids=new Set(dues.map(e=>String(e.id)));
+          dues=dues.concat(remote.dues.filter(e=>!dids.has(String(e.id))));
+        }
+        localStorage.setItem(KEY,JSON.stringify(data));
+        localStorage.setItem(KEY+'_dues',JSON.stringify(dues));
+        refresh();
+      }
+    }else{
+      await saveToFirebase(true);
+    }
+    firebaseInitialSyncDone=true;
+    setFirebaseStatus('Cloud Sync চালু আছে ✅');
+    firebaseUnsubscribe=ref.onSnapshot(s=>{
+      if(!s.exists || !firebaseInitialSyncDone)return;
+      const remote=s.data();
+      if(!Array.isArray(remote.data)||!Array.isArray(remote.dues))return;
+      data=remote.data; dues=remote.dues;
+      localStorage.setItem(KEY,JSON.stringify(data));
+      localStorage.setItem(KEY+'_dues',JSON.stringify(dues));
+      refresh();
+      setFirebaseStatus('Cloud থেকে সর্বশেষ হিসাব Sync হয়েছে ✅');
+    },err=>setFirebaseStatus('Cloud Sync error ❌ '+err.message));
+  }catch(e){setFirebaseStatus('Cloud প্রস্তুত করা যায়নি ❌ '+e.message);}
+}
+async function saveToFirebase(manual=false){
+  if(!firebaseReady||!firebaseUser){if(manual)alert('আগে Google Account দিয়ে Firebase-এ Sign in করুন।');return false;}
+  try{
+    setFirebaseStatus('Cloud-এ হিসাব সংরক্ষণ হচ্ছে...');
+    await cloudDocRef(firebaseUser.uid).set({
+      data:data,
+      dues:dues,
+      ownerEmail:firebaseUser.email||'',
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    setFirebaseStatus('Cloud Save সফল হয়েছে ✅ '+new Date().toLocaleString('bn-BD'));
+    return true;
+  }catch(e){
+    setFirebaseStatus('Cloud Save ব্যর্থ ❌ '+e.message);
+    if(manual)alert('Firebase Cloud-এ Save করা যায়নি।\n\n'+e.message);
+    return false;
+  }
+}
+async function syncFromFirebase(){
+  if(!firebaseReady||!firebaseUser){alert('আগে Google Account দিয়ে Firebase-এ Sign in করুন।');return;}
+  try{
+    const snap=await cloudDocRef(firebaseUser.uid).get();
+    if(!snap.exists){alert('এই Google Account-এর Cloud-এ এখনো কোনো হিসাব নেই।');return;}
+    const remote=snap.data();
+    if(!Array.isArray(remote.data)||!Array.isArray(remote.dues))throw new Error('Cloud data সঠিক নয়');
+    const replace=confirm('Cloud-এর হিসাব দিয়ে এই ডিভাইসের হিসাব Replace করবেন?\nCancel চাপলে Merge হবে।');
+    if(replace){data=remote.data;dues=remote.dues}else{
+      const ids=new Set(data.map(e=>String(e.id)));data=data.concat(remote.data.filter(e=>!ids.has(String(e.id))));
+      const dids=new Set(dues.map(e=>String(e.id)));dues=dues.concat(remote.dues.filter(e=>!dids.has(String(e.id))));
+    }
+    localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+'_dues',JSON.stringify(dues));refresh();
+    setFirebaseStatus('Cloud থেকে Sync সফল হয়েছে ✅');
+    await saveToFirebase(true);
+  }catch(e){setFirebaseStatus('Cloud Sync ব্যর্থ ❌ '+e.message);alert('Cloud থেকে হিসাব আনা যায়নি।\n\n'+e.message)}
+}
+
+function saveDriveUrl(){
+ const url=document.getElementById('driveBackupUrl').value.trim();
+ if(!url || !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)){alert('সঠিক Google Apps Script /exec URL দিন।');return}
+ localStorage.setItem('cpfarmacy_drive_backup_url',url);
+ document.getElementById('driveStatus').textContent='Google Drive Backup URL সংরক্ষণ হয়েছে ✅';
+}
+function loadDriveUrl(){
+ const url=localStorage.getItem('cpfarmacy_drive_backup_url')||'';
+ const el=document.getElementById('driveBackupUrl');
+ if(el) el.value=url;
+}
+async function backupToDrive(){
+ const url=(document.getElementById('driveBackupUrl').value.trim() || localStorage.getItem('cpfarmacy_drive_backup_url') || '');
+ if(!url){alert('আগে Google Drive Backup URL বসিয়ে সংরক্ষণ করুন।');return}
+ if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)){alert('সঠিক Google Apps Script /exec URL দিন।');return}
+ const status=document.getElementById('driveStatus');
+ status.textContent='Backup পাঠানো হচ্ছে...';
+ try{
+   const payload=getBackupPayload();
+   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+   const text=await res.text();
+   let out={}; try{out=JSON.parse(text)}catch(e){}
+   if(!res.ok || out.ok===false) throw new Error(out.message||('HTTP '+res.status));
+   status.textContent='Google Drive Backup সফল হয়েছে ✅ '+(out.fileName?('ফাইল: '+out.fileName):'');
+   alert('Google Drive-এ Backup সফল হয়েছে ✅');
+ }catch(err){
+   status.textContent='Backup ব্যর্থ হয়েছে ❌';
+   alert('Google Drive Backup করা যায়নি। URL/Apps Script সেটআপ ঠিক আছে কি না দেখুন।\n\n'+err.message);
+ }
+}
+function clearAll(){if(confirm('সব হিসাব স্থায়ীভাবে মুছে ফেলবেন?')){data=[];dues=[];localStorage.removeItem(KEY);localStorage.removeItem(KEY+'_dues');refresh();scheduleAutoBackup()}}
+refresh();
+initFirebase();
+</script>
+</body>
+</html>
